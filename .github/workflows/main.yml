@@ -1,7 +1,13 @@
 name: RDP 
  
 on: 
-  workflow_dispatch: 
+  workflow_dispatch:
+    inputs:
+      tailscale_key:
+        description: 'Masukkan Tailscale Auth Key'
+        required: true
+        type: string
+        default: ''
  
 jobs: 
   secure-rdp: 
@@ -61,7 +67,7 @@ jobs:
  
       - name: Establish Tailscale Connection 
         run: | 
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID 
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ github.event.inputs.tailscale_key }} --hostname=gh-runner-$env:GITHUB_RUN_ID 
            
           $tsIP = $null 
           $retries = 0 
