@@ -5,8 +5,8 @@ on:
  
 jobs: 
   secure-rdp: 
-    runs-on: [self-hosted, windows, x64, 32-core-128gb]  # Adjust to your custom runner labels
-    timeout-minutes: 3600 
+    runs-on: windows-latest  # Menggunakan runner bawaan GitHub secara otomatis
+    timeout-minutes: 360 
  
     steps: 
       - name: Configure Core RDP Settings 
@@ -92,9 +92,8 @@ jobs:
           } 
           Write-Host "Tailscale IP assigned: $tsIP"
           Write-Host "You can now connect using: mstsc /v:$tsIP"
-
+ 
       - name: Keep RDP Session Alive 
         run: | 
-          Write-Host "RDP is ready and running. Keeping the workflow alive for 3 hours..."
-          # Sleep for 3 hours (10800 seconds) or adjust as needed
+          Write-Host "RDP is ready and running. Keeping the workflow alive..."
           Start-Sleep -Seconds 10800
