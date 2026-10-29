@@ -30,19 +30,23 @@ jobs:
         net user runneradmin "${{ github.event.inputs.password }}"
         Write-Host "Password administrator berhasil diatur."
 
-    - name: Download dan Setup Ngrok
+    - name: Install & Setup Ngrok
       run: |
-        # Download Ngrok secara langsung dalam format ZIP
-        Invoke-WebRequest -Uri "https://bin.equinox.io/c/4VdrD7mWAFD/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
-        Expand-Archive -Path "ngrok.zip" -DestinationPath "." -Force
+        winget install --id Ngrok.Ngrok -e --accept-source-agreements --accept-package-agreements
+        
+        # Refresh PATH agar ngrok langsung terbaca di sesi PowerShell ini
+        $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
         
         # Konfigurasi Authtoken
-        .\ngrok.exe config add-authtoken "${{ github.event.inputs.ngrok_authtoken }}"
-        Write-Host "Ngrok berhasil diunduh dan dikonfigurasi."
+        ngrok config add-authtoken "${{ github.event.inputs.ngrok_authtoken }}"
+        Write-Host "Ngrok berhasil diinstal dan dikonfigurasi."
 
     - name: Menjalankan Ngrok TCP Tunnel (Port 3389)
       run: |
-        Start-Process .\ngrok.exe -ArgumentList "tcp 3389" -NoNewWindow
+        # Refresh PATH kembali untuk memastikan
+        $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
+        
+        Start-Process ngrok -ArgumentList "tcp 3389" -NoNewWindow
         Start-Sleep -Seconds 7
         
         try {
