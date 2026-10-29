@@ -39,7 +39,10 @@ jobs:
         
         # Konfigurasi Authtoken
         ngrok config add-authtoken "${{ github.event.inputs.ngrok_authtoken }}"
-        Write-Host "Ngrok berhasil diinstal dan dikonfigurasi."
+        
+        # Update ngrok ke versi terbaru untuk mengatasi error versi lawas
+        ngrok update
+        Write-Host "Ngrok berhasil diinstal, dikonfigurasi, dan diperbarui."
 
     - name: Menjalankan Ngrok TCP Tunnel (Port 3389)
       run: |
