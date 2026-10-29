@@ -32,20 +32,23 @@ jobs:
 
     - name: Download dan Setup Ngrok
       run: |
-        winget install --id Ngrok.Ngrok -e --accept-source-agreements --accept-package-agreements
-        ngrok config add-authtoken "${{ github.event.inputs.ngrok_authtoken }}"
-        Write-Host "Ngrok berhasil dikonfigurasi."
+        # Download Ngrok secara langsung dalam format ZIP
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/4VdrD7mWAFD/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive -Path "ngrok.zip" -DestinationPath "." -Force
+        
+        # Konfigurasi Authtoken
+        .\ngrok.exe config add-authtoken "${{ github.event.inputs.ngrok_authtoken }}"
+        Write-Host "Ngrok berhasil diunduh dan dikonfigurasi."
 
     - name: Menjalankan Ngrok TCP Tunnel (Port 3389)
       run: |
-        Start-Process ngrok -ArgumentList "tcp 3389" -NoNewWindow
+        Start-Process .\ngrok.exe -ArgumentList "tcp 3389" -NoNewWindow
         Start-Sleep -Seconds 7
         
         try {
             $response = Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels" -ErrorAction Stop
-            $tcpUrl = $response.tunnels | Where-Object { $_.proto -eq "tcp" } | Select-Name -ExpandProperty public_url 2>$null
+            $tcpUrl = $response.tunnels | Where-Object { $_.proto -eq "tcp" } | Select-Object -ExpandProperty public_url 2>$null
             if (-not $tcpUrl) {
-                # Fallback untuk PowerShell versi lama
                 $tcpUrl = ($response.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url
             }
             
