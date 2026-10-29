@@ -1,28 +1,32 @@
 name: RDP 
-
+ 
 on: 
   workflow_dispatch: 
-
+ 
 jobs: 
   secure-rdp: 
-    runs-on: [self-hosted, windows, x64, 32-core-128gb]  # Sesuaikan label runner Anda
+    runs-on: [self-hosted, windows, x64, 32-core-128gb]  # Adjust to your custom runner labels
     timeout-minutes: 3600 
  
     steps: 
       - name: Configure Core RDP Settings 
         run: | 
           # Enable Remote Desktop and disable Network Level Authentication 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'  \
+                             -Name "fDenyTSConnections" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'  \
+                             -Name "UserAuthentication" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'  \
+                             -Name "SecurityLayer" -Value 0 -Force 
  
           # Remove any existing rule with the same name to avoid duplication 
           netsh advfirewall firewall delete rule name="RDP-Tailscale" 
            
           # Allow incoming connection on port 3389 
-          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389 
+          netsh advfirewall firewall add rule name="RDP-Tailscale"  \
+            dir=in action=allow protocol=TCP localport=3389 
  
-          # Restart the Remote Desktop service 
+          # Restart the Remote Desktop service to ensure changes take effect 
           Restart-Service -Name TermService -Force 
  
       - name: Create RDP User with Secure Password 
@@ -33,7 +37,7 @@ jobs:
               Lower   = [char[]](97..122)     # a-z 
               Number  = [char[]](48..57)      # 0-9 
               Special = ([char[]](33..47) + [char[]](58..64) + 
-                         [char[]](91..96) + [char[]](123..126)) 
+                         [char[]](91..96) + [char[]](123..126)) # Special characters 
           } 
           $rawPassword = @() 
           $rawPassword += $charSet.Upper | Get-Random -Count 4 
@@ -42,13 +46,15 @@ jobs:
           $rawPassword += $charSet.Special | Get-Random -Count 4 
           $password = -join ($rawPassword | Sort-Object { Get-Random }) 
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force 
-          
-          New-LocalUser -Name "Skyro" -Password $securePass -AccountNeverExpires -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Administrators" -Member "Skyro" -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Skyro" -ErrorAction SilentlyContinue
+          New-LocalUser -Name "Skyro" -Password $securePass -AccountNeverExpires 
+          Add-LocalGroupMember -Group "Administrators" -Member "Skyro" 
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Skyro" 
            
-          echo "RDP_USER=Skyro" >> $env:GITHUB_ENV 
-          echo "RDP_PASS=$password" >> $env:GITHUB_ENV 
+          Write-Output "=========================================="
+          Write-Output "RDP CREDENTIALS: User: Skyro | Password: $password"
+          Write-Output "=========================================="
+          
+          echo "RDP_CREDS=User: Skyro | Password: $password" >> $env:GITHUB_ENV 
            
           if (-not (Get-LocalUser -Name "Skyro")) { 
               Write-Error "User creation failed" 
@@ -61,18 +67,22 @@ jobs:
           $installerPath = "$env:TEMP\tailscale.msi" 
            
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath 
-          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait 
+          Start-Process msiexec.exe -ArgumentList "/i", ""$installerPath"", "/quiet", "/norestart" -Wait 
           Remove-Item $installerPath -Force 
  
-      - name: Establish Tailscale Connection & Summary 
+      - name: Establish Tailscale Connection 
         run: | 
+          # Bring up Tailscale with the provided auth key and set a unique hostname 
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID 
            
+          # Wait for Tailscale to assign an IP 
           $tsIP = $null 
           $retries = 0 
-          while (-not $tsIP -and $retries -lt 15) { 
-              Start-Sleep -Seconds 5 
+          while (-not $tsIP -and $retries -lt 10) { 
               $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+              if (-not $tsIP) { 
+                  Start-Sleep -Seconds 5 
+              }
               $retries++ 
           } 
            
@@ -80,14 +90,11 @@ jobs:
               Write-Error "Tailscale IP not assigned. Exiting." 
               exit 1 
           } 
-          
           Write-Host "Tailscale IP assigned: $tsIP"
-          echo "RDP_IP=$tsIP" >> $env:GITHUB_ENV
+          Write-Host "You can now connect using: mstsc /v:$tsIP"
 
-          # Cetak informasi akses RDP ke GitHub Step Summary agar mudah disalin
-          "### 🖥️ Windows RDP Ready!" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
-          "**Host / Tailscale IP:** `$tsIP:3389" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "**Username:** Skyro" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "**Password:** `$password" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "---" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "*Gunakan client RDP favorit Anda (Remote Desktop Connection / mRemoteNG) melalui jaringan Tailscale yang terhubung.*" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Keep RDP Session Alive 
+        run: | 
+          Write-Host "RDP is ready and running. Keeping the workflow alive for 3 hours..."
+          # Sleep for 3 hours (10800 seconds) or adjust as needed
+          Start-Sleep -Seconds 10800
