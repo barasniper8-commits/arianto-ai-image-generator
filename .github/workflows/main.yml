@@ -1,92 +1,67 @@
-name: RDP 
- 
-on: 
+name: Windows RDP via Ngrok
+
+on:
   workflow_dispatch:
     inputs:
-      tailscale_key:
-        description: 'Masukkan Tailscale Auth Key'
+      ngrok_authtoken:
+        description: 'Ngrok Auth Token (Dapatkan gratis di dashboard ngrok.com)'
         required: true
         type: string
-        default: ''
- 
-jobs: 
-  secure-rdp: 
-    runs-on: windows-latest 
-    timeout-minutes: 360 
- 
-    steps: 
-      - name: Configure Core RDP Settings 
-        run: | 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force 
-          netsh advfirewall firewall delete rule name="RDP-Tailscale" 
-          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389 
-          Restart-Service -Name TermService -Force 
- 
-      - name: Create RDP User with Secure Password 
-        run: | 
-          Add-Type -AssemblyName System.Security 
-          $charSet = @{ 
-              Upper   = [char[]](65..90)      # A-Z 
-              Lower   = [char[]](97..122)     # a-z 
-              Number  = [char[]](48..57)      # 0-9 
-              Special = ([char[]](33..47) + [char[]](58..64) + 
-                         [char[]](91..96) + [char[]](123..126)) # Special characters 
-          } 
-          $rawPassword = @() 
-          $rawPassword += $charSet.Upper | Get-Random -Count 4 
-          $rawPassword += $charSet.Lower | Get-Random -Count 4 
-          $rawPassword += $charSet.Number | Get-Random -Count 4 
-          $rawPassword += $charSet.Special | Get-Random -Count 4 
-          $password = -join ($rawPassword | Sort-Object { Get-Random }) 
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force 
-          New-LocalUser -Name "Skyro" -Password $securePass -AccountNeverExpires 
-          Add-LocalGroupMember -Group "Administrators" -Member "Skyro" 
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Skyro" 
-           
-          Write-Output "=========================================="
-          Write-Output "RDP CREDENTIALS: User: Skyro | Password: $password"
-          Write-Output "=========================================="
-          
-          echo "RDP_CREDS=User: Skyro | Password: $password" >> $env:GITHUB_ENV 
-           
-          if (-not (Get-LocalUser -Name "Skyro")) { 
-              Write-Error "User creation failed" 
-              exit 1 
-          } 
- 
-      - name: Install Tailscale 
-        run: | 
-          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" 
-          $installerPath = "$env:TEMP\tailscale.msi" 
-           
-          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath 
-          Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /norestart" -Wait 
-          Remove-Item $installerPath -Force 
- 
-      - name: Establish Tailscale Connection 
-        run: | 
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ github.event.inputs.tailscale_key }} --hostname=gh-runner-$env:GITHUB_RUN_ID 
-           
-          $tsIP = $null 
-          $retries = 0 
-          while (-not $tsIP -and $retries -lt 10) { 
-              $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-              if (-not $tsIP) { 
-                  Start-Sleep -Seconds 5 
-              }
-              $retries++ 
-          } 
-           
-          if (-not $tsIP) { 
-              Write-Error "Tailscale IP not assigned. Exiting." 
-              exit 1 
-          } 
-          Write-Host "Tailscale IP assigned: $tsIP"
-          Write-Host "You can now connect using: mstsc /v:$tsIP"
- 
-      - name: Keep RDP Session Alive 
-        run: | 
-          Write-Host "RDP is ready and running. Keeping the workflow alive..."
-          Start-Sleep -Seconds 10800
+      password:
+        description: 'Password untuk user runneradmin'
+        required: true
+        default: 'SecretPass123!'
+
+jobs:
+  windows-vps:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+    - name: Mengaktifkan RDP dan Konfigurasi Firewall
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Write-Host "RDP berhasil diaktifkan."
+
+    - name: Mengatur Password Administrator
+      run: |
+        net user runneradmin "${{ github.event.inputs.password }}"
+        Write-Host "Password administrator berhasil diatur."
+
+    - name: Download dan Setup Ngrok
+      run: |
+        winget install --id Ngrok.Ngrok -e --accept-source-agreements --accept-package-agreements
+        ngrok config add-authtoken "${{ github.event.inputs.ngrok_authtoken }}"
+        Write-Host "Ngrok berhasil dikonfigurasi."
+
+    - name: Menjalankan Ngrok TCP Tunnel (Port 3389)
+      run: |
+        Start-Process ngrok -ArgumentList "tcp 3389" -NoNewWindow
+        Start-Sleep -Seconds 7
+        
+        try {
+            $response = Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels" -ErrorAction Stop
+            $tcpUrl = $response.tunnels | Where-Object { $_.proto -eq "tcp" } | Select-Name -ExpandProperty public_url 2>$null
+            if (-not $tcpUrl) {
+                # Fallback untuk PowerShell versi lama
+                $tcpUrl = ($response.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url
+            }
+            
+            Write-Host "========================================================" -ForegroundColor Green
+            Write-Host " KONEKSI RDP BERHASIL DIBUAT!" -ForegroundColor Green
+            Write-Host " Alamat RDP (Host:Port) : $tcpUrl" -ForegroundColor Cyan
+            Write-Host " Username               : runneradmin" -ForegroundColor Yellow
+            Write-Host " Password               : ${{ github.event.inputs.password }}" -ForegroundColor Yellow
+            Write-Host "========================================================" -ForegroundColor Green
+        } catch {
+            Write-Host "Gagal mengambil URL Ngrok dari API lokal. Pastikan Auth Token valid." -ForegroundColor Red
+        }
+
+    - name: Menjaga Runner Tetap Aktif (Maksimal 6 Jam)
+      run: |
+        Write-Host "VPS Windows aktif. Jangan menutup tab Actions ini selama sesi berjalan."
+        for ($i = 1; $i -le 360; $i++) {
+            Start-Sleep -Seconds 60
+        }
