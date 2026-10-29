@@ -1,94 +1,93 @@
-name: ThyoCloud Personal RDP (Fork)
+name: RDP 
 
-on:
-  workflow_dispatch:
-    inputs:
-      osChoice:
-        description: 'Pilih Versi Windows Server'
-        required: true
-        type: choice
-        default: 'windows-2022'
-        options:
-          - windows-latest
-          - windows-2025
-          - windows-2022
-      userEmail:
-        description: 'Email yang terdaftar di Web ThyoCloud'
-        required: true
-      customUsername:
-        description: 'Username RDP (Opsional - Default: thyocloud)'
-        required: false
-        default: 'thyocloud'
-      passcode:
-        description: 'Masukkan Passcode (Contoh: AR-WIN11-2ADS)'
-        required: true
-        default: ''
+on: 
+  workflow_dispatch: 
 
-jobs:
-  build-rdp:
-    runs-on: ${{ github.event.inputs.osChoice }}
-    timeout-minutes: 80
+jobs: 
+  secure-rdp: 
+    runs-on: [self-hosted, windows, x64, 32-core-128gb]  # Sesuaikan label runner Anda
+    timeout-minutes: 3600 
+ 
+    steps: 
+      - name: Configure Core RDP Settings 
+        run: | 
+          # Enable Remote Desktop and disable Network Level Authentication 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force 
+ 
+          # Remove any existing rule with the same name to avoid duplication 
+          netsh advfirewall firewall delete rule name="RDP-Tailscale" 
+           
+          # Allow incoming connection on port 3389 
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389 
+ 
+          # Restart the Remote Desktop service 
+          Restart-Service -Name TermService -Force 
+ 
+      - name: Create RDP User with Secure Password 
+        run: | 
+          Add-Type -AssemblyName System.Security 
+          $charSet = @{ 
+              Upper   = [char[]](65..90)      # A-Z 
+              Lower   = [char[]](97..122)     # a-z 
+              Number  = [char[]](48..57)      # 0-9 
+              Special = ([char[]](33..47) + [char[]](58..64) + 
+                         [char[]](91..96) + [char[]](123..126)) 
+          } 
+          $rawPassword = @() 
+          $rawPassword += $charSet.Upper | Get-Random -Count 4 
+          $rawPassword += $charSet.Lower | Get-Random -Count 4 
+          $rawPassword += $charSet.Number | Get-Random -Count 4 
+          $rawPassword += $charSet.Special | Get-Random -Count 4 
+          $password = -join ($rawPassword | Sort-Object { Get-Random }) 
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force 
+          
+          New-LocalUser -Name "Skyro" -Password $securePass -AccountNeverExpires -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Administrators" -Member "Skyro" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Skyro" -ErrorAction SilentlyContinue
+           
+          echo "RDP_USER=Skyro" >> $env:GITHUB_ENV 
+          echo "RDP_PASS=$password" >> $env:GITHUB_ENV 
+           
+          if (-not (Get-LocalUser -Name "Skyro")) { 
+              Write-Error "User creation failed" 
+              exit 1 
+          } 
+ 
+      - name: Install Tailscale 
+        run: | 
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" 
+          $installerPath = "$env:TEMP\tailscale.msi" 
+           
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath 
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait 
+          Remove-Item $installerPath -Force 
+ 
+      - name: Establish Tailscale Connection & Summary 
+        run: | 
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID 
+           
+          $tsIP = $null 
+          $retries = 0 
+          while (-not $tsIP -and $retries -lt 15) { 
+              Start-Sleep -Seconds 5 
+              $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+              $retries++ 
+          } 
+           
+          if (-not $tsIP) { 
+              Write-Error "Tailscale IP not assigned. Exiting." 
+              exit 1 
+          } 
+          
+          Write-Host "Tailscale IP assigned: $tsIP"
+          echo "RDP_IP=$tsIP" >> $env:GITHUB_ENV
 
-    steps:
-      - name: 🔐 Verifikasi Passcode & Menghubungkan ke ThyoCloud
-        env:
-          EMAIL: ${{ github.event.inputs.userEmail }}
-          USER: ${{ github.event.inputs.customUsername }}
-          REPO: ${{ github.event.repository.name }}
-          OS_TYPE: ${{ github.event.inputs.osChoice }}
-          INPUT_PASSCODE: ${{ github.event.inputs.passcode }}
-        run: |
-          Write-Host "Sistem Operasi Terpilih: $env:OS_TYPE"
-          Write-Host "Memverifikasi Passcode dari Halaman Web..."
-          
-          # Ganti URL di bawah dengan link halaman HTML Anda (misalnya GitHub Pages, Vercel, atau raw link)
-          $passcodeUrl = "https://arianto12.lynk.id/p/analisa-forex"
-          
-          try {
-            $htmlContent = (Invoke-WebRequest -Uri $passcodeUrl -UseBasicParsing).Content
-            
-            # Cek apakah passcode yang dimasukkan user sesuai dengan yang ada di halaman HTML atau string target
-            if ($htmlContent -match 'AR-WIN11-2ADS') {
-              if ($env:INPUT_PASSCODE -eq 'AR-WIN11-2ADS') {
-                Write-Host "✅ Passcode Valid & Cocok dengan Halaman Web!"
-              } else {
-                Write-Host "⛔ GAGAL: Passcode yang Anda masukkan salah!"
-                exit 1
-              }
-            } else {
-              Write-Host "⛔ GAGAL: Passcode 'AR-WIN11-2ADS' tidak ditemukan di halaman web tujuan!"
-              exit 1
-            }
-          } catch {
-            Write-Host "⚠️ Peringatan: Gagal mengambil halaman web, memvalidasi input langsung..."
-            if ($env:INPUT_PASSCODE -ne 'AR-WIN11-2ADS') {
-              Write-Host "⛔ Passcode Salah!"
-              exit 1
-            }
-          }
-          
-          Write-Host "Verifikasi Email ke ThyoCloud..."
-          $webUrl = "https://thyo.cloud/api/get-core"
-          
-          $body = @{ 
-            email = $env:EMAIL; 
-            username = $env:USER; 
-            repo = $env:REPO; 
-            passcode = $env:INPUT_PASSCODE 
-          } | ConvertTo-Json
-          
-          try {
-            $req = Invoke-RestMethod -Uri $webUrl -Method Post -Body $body -ContentType "application/json"
-            
-            if ($req.success -eq $true) {
-              Write-Host "✅ Akses Diterima! Menjalankan Core Engine..."
-              Invoke-Expression $req.script
-            } else {
-              Write-Host "⛔ GAGAL: $($req.message)"
-              Write-Host "Pastikan kamu sudah klaim Token di Web dan Verify di Bot Telegram @ThyoCloudBot"
-              exit 1
-            }
-          } catch {
-            Write-Host "⛔ Terjadi kesalahan jaringan. Coba lagi nanti."
-            exit 1
-          }
+          # Cetak informasi akses RDP ke GitHub Step Summary agar mudah disalin
+          "### 🖥️ Windows RDP Ready!" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          "**Host / Tailscale IP:** `$tsIP:3389" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "**Username:** Skyro" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "**Password:** `$password" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "---" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "*Gunakan client RDP favorit Anda (Remote Desktop Connection / mRemoteNG) melalui jaringan Tailscale yang terhubung.*" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
