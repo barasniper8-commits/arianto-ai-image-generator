@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131c">
+  <title>Arianto AI Studio — Image Generator</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b0e14;--panel:#121722;--panel2:#171e2b;--line:#283244;--text:#f4f7fb;--muted:#9aa7bb;--accent:#8b7cff;--accent2:#5de1c2;--danger:#ff7474}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#252044 0,transparent 40%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    .wrap{max-width:1080px;margin:auto;padding:24px 16px 56px}.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:24px}.brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#090b12;font-size:23px;font-weight:900}.brand h1{font-size:18px;margin:0}.brand p{margin:2px 0 0;color:var(--muted);font-size:12px}.pill{border:1px solid var(--line);border-radius:999px;padding:7px 11px;color:var(--muted);font-size:12px}
+    .hero{margin:0 0 22px}.hero h2{font-size:clamp(27px,5vw,42px);line-height:1.1;margin:0 0 10px;letter-spacing:-1px}.hero h2 span{color:var(--accent2)}.hero p{max-width:650px;color:var(--muted);margin:0}
+    .layout{display:grid;grid-template-columns:minmax(0,0.92fr) minmax(0,1.08fr);gap:18px}.panel{background:rgba(18,23,34,.94);border:1px solid var(--line);border-radius:20px;padding:20px;min-width:0;box-shadow:0 18px 50px #0002}.panel h3{margin:0 0 15px;font-size:16px}.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#0c1018;border:1px solid var(--line);padding:5px;border-radius:12px;margin-bottom:18px}.tab{border:0;border-radius:9px;padding:11px 8px;background:transparent;color:var(--muted);font-weight:700;cursor:pointer}.tab.active{background:var(--panel2);color:var(--text);box-shadow:inset 0 0 0 1px #39465d}
+    label{display:block;font-size:13px;font-weight:700;margin:15px 0 8px}textarea,select,input[type=password]{width:100%;border:1px solid var(--line);background:#0b1018;color:var(--text);border-radius:12px;padding:12px;font:inherit;outline:none}textarea{min-height:132px;resize:vertical}textarea:focus,select:focus,input:focus{border-color:var(--accent)}.hint{font-size:12px;color:var(--muted);margin-top:6px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.upload{border:1px dashed #46536b;border-radius:14px;padding:15px;text-align:center;background:#0d121b}.upload input{max-width:100%;font-size:12px}.preview-upload{max-width:100%;max-height:190px;object-fit:contain;border-radius:10px;margin-top:10px;display:none}.btn{width:100%;border:0;border-radius:12px;padding:13px 16px;background:linear-gradient(100deg,var(--accent),#6b9bff);color:white;font:700 15px inherit;cursor:pointer;margin-top:18px;min-height:48px}.btn:disabled{opacity:.55;cursor:wait}.btn.secondary{background:#202a3b;border:1px solid #36445a;margin-top:10px}.status{margin-top:12px;color:var(--muted);font-size:13px;min-height:20px;overflow-wrap:anywhere}.status.error{color:var(--danger)}.result{display:flex;flex-direction:column;min-height:520px}.result-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.result-head h3{margin:0}.canvas{flex:1;min-height:400px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(45deg,#151b27 25%,transparent 25%),linear-gradient(-45deg,#151b27 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#151b27 75%),linear-gradient(-45deg,transparent 75%,#151b27 75%);background-size:22px 22px;background-position:0 0,0 11px,11px -11px,-11px 0;display:grid;place-items:center;overflow:hidden}.canvas img{display:block;max-width:100%;max-height:70vh;object-fit:contain}.empty{text-align:center;padding:30px;color:var(--muted)}.empty .symbol{font-size:45px;margin-bottom:10px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.foot{color:var(--muted);font-size:11px;text-align:center;margin-top:18px}.hidden{display:none!important}
+    @media(max-width:760px){.wrap{padding:18px 12px 36px}.layout{grid-template-columns:1fr}.panel{padding:16px}.result{min-height:420px}.canvas{min-height:300px}.top{align-items:flex-start}.pill{font-size:11px}.hero{margin-bottom:18px}}
+    @media(max-width:400px){.row{grid-template-columns:1fr}.brand h1{font-size:16px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="brand"><div class="logo">✦</div><div><h1>ARIANTO AI STUDIO</h1><p>IMAGE GENERATOR & EDITOR</p></div></div>
+      <div class="pill">GPT Image 2.5 Sunburst</div>
+    </header>
+    <section class="hero"><h2>Ubah ide menjadi <span>visual.</span></h2><p>Buat gambar dari deskripsi teks atau unggah gambar untuk diedit dengan AI. Tulis prompt sedetail mungkin untuk hasil yang lebih sesuai.</p></section>
+    <div class="layout">
+      <section class="panel">
+        <h3>Pengaturan gambar</h3>
+        <div class="tabs" role="tablist">
+          <button class="tab active" id="tabGenerate" type="button">✦ Buat gambar</button>
+          <button class="tab" id="tabEdit" type="button">✎ Edit gambar</button>
+        </div>
+        <label for="accessCode">Kode akses aplikasi</label>
+        <input id="accessCode" type="password" placeholder="Masukkan kode akses" autocomplete="off">
+        <div class="hint">Kode akses dibuat pemilik aplikasi dan disimpan di backend, bukan API key OpenAI.</div>
+        <label for="prompt">Prompt / instruksi</label>
+        <textarea id="prompt" maxlength="8000" placeholder="Contoh: Logo streetwear harimau bergaya vector, warna hitam dan emas, garis tegas, latar transparan..."></textarea>
+        <div class="hint"><span id="count">0</span>/8000 karakter. Hindari memasukkan informasi pribadi.</div>
+        <div id="uploadArea" class="hidden">
+          <label for="imageFile">Gambar yang akan diedit</label>
+          <div class="upload"><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp"><div class="hint">PNG, JPG, atau WebP. Gambar akan diperkecil di browser agar unggahan lebih ringan.</div><img id="uploadPreview" class="preview-upload" alt="Pratinjau gambar unggahan"></div>
+        </div>
+        <div class="row">
+          <div><label for="size">Ukuran</label><select id="size"><option value="1024x1024">Persegi 1:1</option><option value="1536x1024">Landscape 3:2</option><option value="1024x1536">Portrait 2:3</option><option value="auto">Otomatis</option></select></div>
+          <div><label for="quality">Kualitas</label><select id="quality"><option value="medium">Medium</option><option value="low">Low — lebih hemat</option><option value="high">High</option><option value="xhigh">X-High</option><option value="max">Maximum</option></select></div>
+        </div>
+        <button class="btn" id="runBtn" type="button">✦ Buat gambar</button>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+        <p class="foot">Setiap permintaan memakai kredit API OpenAI. Biaya mengikuti pemakaian model dan kualitas.</p>
+      </section>
+      <section class="panel result">
+        <div class="result-head"><h3>Hasil gambar</h3><div class="pill" id="resultTag">Belum ada hasil</div></div>
+        <div class="canvas" id="canvas"><div class="empty"><div class="symbol">▧</div><strong>Hasil akan tampil di sini</strong><div class="hint">Mulai dengan menulis prompt di panel kiri.</div></div></div>
+        <div class="actions"><button class="btn secondary" id="downloadBtn" disabled>Unduh PNG</button><button class="btn secondary" id="clearBtn" type="button">Bersihkan</button></div>
+      </section>
+    </div>
+  </main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let mode = 'generate', imageData = '', imageMime = '', outputUrl = '';
+  const setStatus = (message, error=false) => { $('status').textContent = message; $('status').classList.toggle('error', error); };
+  const setMode = next => {
+    mode = next;
+    $('tabGenerate').classList.toggle('active', mode === 'generate');
+    $('tabEdit').classList.toggle('active', mode === 'edit');
+    $('uploadArea').classList.toggle('hidden', mode !== 'edit');
+    $('runBtn').textContent = mode === 'edit' ? '✎ Edit gambar dengan AI' : '✦ Buat gambar';
+    setStatus('');
+  };
+  $('tabGenerate').addEventListener('click', () => setMode('generate'));
+  $('tabEdit').addEventListener('click', () => setMode('edit'));
+  $('prompt').addEventListener('input', () => $('count').textContent = $('prompt').value.length);
+
+  async function prepareImage(file) {
+    if (!file) return;
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type)) throw new Error('Gunakan file PNG, JPG, atau WebP.');
+    if (file.size > 15 * 1024 * 1024) throw new Error('Ukuran file awal maksimal 15 MB.');
+    const dataUrl = await new Promise((resolve,reject) => {
+      const reader = new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(new Error('Gagal membaca file.')); reader.readAsDataURL(file);
+    });
+    const img = new Image();
+    await new Promise((resolve,reject) => { img.onload=resolve; img.onerror=()=>reject(new Error('File gambar tidak valid.')); img.src=dataUrl; });
+    const maxSide = 1536, scale = Math.min(1, maxSide / Math.max(img.width,img.height));
+    const canvas = document.createElement('canvas'); canvas.width=Math.max(1,Math.round(img.width*scale)); canvas.height=Math.max(1,Math.round(img.height*scale));
+    const ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const blob = await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.84));
+    if (!blob) throw new Error('Gagal memproses gambar.');
+    imageMime='image/jpeg';
+    imageData = await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(new Error('Gagal memproses gambar.'));r.readAsDataURL(blob);});
+    $('uploadPreview').src=URL.createObjectURL(blob); $('uploadPreview').style.display='block';
+  }
+  $('imageFile').addEventListener('change', async e => {
+    imageData=''; imageMime='';
+    try { await prepareImage(e.target.files[0]); setStatus('Gambar siap diedit.'); }
+    catch(err){ setStatus(err.message,true); $('uploadPreview').style.display='none'; }
+  });
+
+  $('runBtn').addEventListener('click', async () => {
+    const prompt=$('prompt').value.trim(), code=$('accessCode').value.trim();
+    if (!code) return setStatus('Masukkan kode akses aplikasi.',true);
+    if (!prompt) return setStatus('Prompt belum diisi.',true);
+    if (mode==='edit' && !imageData) return setStatus('Pilih gambar yang ingin diedit terlebih dahulu.',true);
+    $('runBtn').disabled=true; $('downloadBtn').disabled=true;
+    setStatus('AI sedang memproses. Proses dapat memerlukan waktu satu menit atau lebih…');
+    $('resultTag').textContent='Sedang diproses';
+    try {
+      const endpoint = mode==='edit' ? '/api/edit' : '/api/generate';
+      const body = { prompt, size:$('size').value, quality:$('quality').value };
+      if (mode==='edit') { body.image=imageData; body.mimeType=imageMime; }
+      const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','x-app-code':code},body:JSON.stringify(body)});
+      const data=await response.json().catch(()=>({error:'Server mengirim respons yang tidak valid.'}));
+      if (!response.ok) throw new Error(data.error || `Permintaan gagal (${response.status}).`);
+      if (!data.image) throw new Error('API tidak mengembalikan gambar.');
+      if (outputUrl) URL.revokeObjectURL(outputUrl);
+      const bytes=Uint8Array.from(atob(data.image),c=>c.charCodeAt(0));
+      const blob=new Blob([bytes],{type:'image/png'}); outputUrl=URL.createObjectURL(blob);
+      const img=document.createElement('img'); img.src=outputUrl; img.alt='Gambar hasil AI';
+      $('canvas').replaceChildren(img); $('downloadBtn').disabled=false;
+      $('resultTag').textContent='Selesai'; setStatus('Berhasil! Gambar sudah dibuat.');
+    } catch(err) {
+      $('resultTag').textContent='Gagal'; setStatus(err.message || 'Terjadi kesalahan.',true);
+    } finally { $('runBtn').disabled=false; }
+  });
+  $('downloadBtn').addEventListener('click',()=>{
+    if (!outputUrl) return;
+    const a=document.createElement('a'); a.href=outputUrl; a.download='arianto-ai-image.png'; document.body.appendChild(a); a.click(); a.remove();
+  });
+  $('clearBtn').addEventListener('click',()=>{
+    if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl='';}
+    $('canvas').innerHTML='<div class="empty"><div class="symbol">▧</div><strong>Hasil akan tampil di sini</strong><div class="hint">Mulai dengan menulis prompt di panel kiri.</div></div>';
+    $('resultTag').textContent='Belum ada hasil'; $('downloadBtn').disabled=true; setStatus('');
+  });
+})();
+</script>
+</body>
+</html>

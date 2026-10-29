@@ -1,0 +1,7 @@
+{
+  "name": "arianto-ai-image-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HTML AI image generator and editor using OpenAI GPT Image 2.5 Sunburst",
+  "engines": { "node": ">=20" }
+}
